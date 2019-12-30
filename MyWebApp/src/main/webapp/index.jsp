@@ -1,5 +1,5 @@
 <html>
 <body>
-<h2>Hello World and This is Kelly Onaghise!</h2>
+<h2>Hello World and we are one!</h2>
 </body>
 </html>
