@@ -1,0 +1,64 @@
+node {
+
+    def mvnHome = tool 'Maven3'
+    stage ("checkout")  {
+       checkout([$class: 'GitSCM', branches: [[name: '*/master']], doGenerateSubmoduleConfigurations: false, extensions: [], submoduleCfg: [], userRemoteConfigs: [[credentialsId: '02b41f77-fdb2-433b-a08c-db9edbce7ce1', url: 'https://kellyedosa@bitbucket.org/kellyedosa/myrepo.git']]])
+    }
+    
+   stage ('build')  {
+    sh "${mvnHome}/bin/mvn clean install -f MyWebApp/pom.xml"
+    }
+    stage ('Code Quality scan')  {
+       withSonarQubeEnv('SonarQube') {
+       sh "${mvnHome}/bin/mvn -f MyWebApp/pom.xml sonar:sonar"
+        }
+   }
+    stage ('Code coverage')  {
+       jacoco()
+   }
+   
+   stage ('Nexus upload')  {
+        nexusArtifactUploader(
+        nexusVersion: 'nexus3',
+        protocol: 'http',
+        nexusUrl: 'ec2-54-196-79-149.compute-1.amazonaws.com:8081',
+        groupId: 'myGroupId',
+        version: '1.0-SNAPSHOT',
+        repository: 'maven-snapshots',
+        credentialsId: 'a707dc44-f360-47d6-a1eb-0f5d981b65dd',
+        artifacts: [
+            [artifactId: 'MyWebApp',
+             classifier: '',
+             file: 'MyWebApp/target/MyWebApp.war',
+             type: 'war']
+        ]
+     )
+    }
+    stage ('QA Deploy')  {
+     echo "deploying to QA Env " 
+    deploy adapters: [tomcat8(credentialsId: '078030e1-9eb8-4b32-915a-f3d15757a450', path: '', url: 'http://localhost:8090')], contextPath: null, war: '**/*.war'
+
+}
+   stage ('DEV Approve')  {
+            echo "Taking approval from DEV Manager"     
+            timeout(time: 7, unit: 'DAYS') {
+            input message: 'Do you want to deploy?', submitter: 'admin'
+            }
+     }
+   stage ('Slack notification')  {
+    slackSend(channel:'devops-coach', message: "Job is successful, here is the info -  Job '${env.JOB_NAME} [${env.BUILD_NUMBER}]' (${env.BUILD_URL})")
+   }
+   stage ('QA Approve')  {
+    echo "Taking approval from QA manager"
+
+    timeout(time: 7, unit: 'DAYS') {
+        input message: 'Do you want to proceed to PROD?', submitter: 'admin,manager_userid'
+  }
+}
+    stage ('QA Deploy')  {
+     echo "deploying to QA Env " 
+    deploy adapters: [tomcat8(credentialsId: '078030e1-9eb8-4b32-915a-f3d15757a450', path: '', url: 'http://localhost:8090')], contextPath: null, war: '**/*.war'
+    }
+}
+   
+   
