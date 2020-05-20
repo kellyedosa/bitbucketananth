@@ -34,7 +34,7 @@ checkout([$class: 'GitSCM', branches: [[name: '*/master']], doGenerateSubmoduleC
     }
    stage ('DEV Deploy')  {
       echo "deploying to DEV Env "
-      deploy adapters: [tomcat8(credentialsId: 'de139c2f-6338-4210-a87a-8cb998e5da6e', path: '', url: 'http://localhost:8090')], contextPath: null, war: '**/*.war'
+      deploy adapters: [tomcat8(credentialsId: 'de139c2f-6338-4210-a87a-8cb998e5da6e', path: '', url: 'http://54.183.221.16:8090')], contextPath: null, war: '**/*.war'
 
     }
     
