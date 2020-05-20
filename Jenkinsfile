@@ -1,0 +1,67 @@
+node {
+
+    def mvnHome = tool 'Maven3'
+    stage ("checkout")  {
+checkout([$class: 'GitSCM', branches: [[name: '*/master']], doGenerateSubmoduleConfigurations: false, extensions: [], submoduleCfg: [], userRemoteConfigs: [[url: 'https://github.com/kellyedosa/bitbucketananth.git']]])
+    }
+   stage ('build')  {
+    sh "${mvnHome}/bin/mvn clean install -f MyWebApp/pom.xml"
+    }
+    stage ('Code Quality scan')  {
+       withSonarQubeEnv('SonarQube') {
+       sh "${mvnHome}/bin/mvn -f MyWebApp/pom.xml sonar:sonar"
+        }
+   }
+   stage ('Code coverage')  {
+       jacoco()
+   }
+   stage ('Nexus upload')  {
+        nexusArtifactUploader(
+        nexusVersion: 'nexus3',
+        protocol: 'http',
+        nexusUrl: '54.215.212.92:8081',
+        groupId: 'myGroupId',
+        version: '1.0-SNAPSHOT',
+        repository: 'maven-snapshots',
+        credentialsId: '7dd3c1c6-0e6a-4340-a8c0-53092f2733fc',
+        artifacts: [
+            [artifactId: 'MyWebApp',
+             classifier: '',
+             file: 'MyWebApp/target/MyWebApp.war',
+             type: 'war']
+        ]
+     )
+    }
+   stage ('DEV Deploy')  {
+      echo "deploying to DEV Env "
+      deploy adapters: [tomcat8(credentialsId: 'de139c2f-6338-4210-a87a-8cb998e5da6e', path: '', url: 'http://localhost:8090')], contextPath: null, war: '**/*.war'
+
+    }
+    
+   stage ('DEV Approve')  {
+            echo "Taking approval from DEV Manager"     
+            timeout(time: 7, unit: 'DAYS') {
+            input message: 'Do you want to deploy?', submitter: 'admin'
+            }
+     }
+     stage ('QA Deploy')  {
+     echo "deploying to QA Env " 
+deploy adapters: [tomcat8(credentialsId: 'de139c2f-6338-4210-a87a-8cb998e5da6e', path: '', url: 'http://localhost:8090')], contextPath: null, war: '**/*.war'
+
+}
+stage ('Slack notification')  {
+    slackSend(channel:'ananthprojectdeploy', message: "Job is successful, here is the info -  Job '${env.JOB_NAME} [${env.BUILD_NUMBER}]' (${env.BUILD_URL})")
+   }
+   stage ('QA Deploy')  {
+     echo "deploying to QA Env " 
+deploy adapters: [tomcat8(credentialsId: 'de139c2f-6338-4210-a87a-8cb998e5da6e', path: '', url: 'http://localhost:8090')], contextPath: null, war: '**/*.war'
+
+}
+stage ('QA Approve')  {
+    echo "Taking approval from QA manager"
+
+    timeout(time: 7, unit: 'DAYS') {
+        input message: 'Do you want to proceed to PROD?', submitter: 'admin,manager_userid'
+  }
+}
+}
