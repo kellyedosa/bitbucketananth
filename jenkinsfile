@@ -1,10 +1,10 @@
-node {
+
+   node {
 
     def mvnHome = tool 'Maven3'
     stage ("checkout")  {
-       checkout([$class: 'GitSCM', branches: [[name: '*/master']], doGenerateSubmoduleConfigurations: false, extensions: [], submoduleCfg: [], userRemoteConfigs: [[credentialsId: '02b41f77-fdb2-433b-a08c-db9edbce7ce1', url: 'https://kellyedosa@bitbucket.org/kellyedosa/myrepo.git']]])
+checkout([$class: 'GitSCM', branches: [[name: '*/master']], doGenerateSubmoduleConfigurations: false, extensions: [], submoduleCfg: [], userRemoteConfigs: [[url: 'https://github.com/kellyedosa/bitbucketananth.git']]])
     }
-    
    stage ('build')  {
     sh "${mvnHome}/bin/mvn clean install -f MyWebApp/pom.xml"
     }
@@ -13,19 +13,18 @@ node {
        sh "${mvnHome}/bin/mvn -f MyWebApp/pom.xml sonar:sonar"
         }
    }
-    stage ('Code coverage')  {
+   stage ('Code coverage')  {
        jacoco()
    }
-   
    stage ('Nexus upload')  {
         nexusArtifactUploader(
         nexusVersion: 'nexus3',
         protocol: 'http',
-        nexusUrl: 'ec2-54-92-169-97.compute-1.amazonaws.com:8081',
+        nexusUrl: '54.215.212.92:8081',
         groupId: 'myGroupId',
         version: '1.0-SNAPSHOT',
         repository: 'maven-snapshots',
-        credentialsId: 'a707dc44-f360-47d6-a1eb-0f5d981b65dd',
+        credentialsId: '7dd3c1c6-0e6a-4340-a8c0-53092f2733fc',
         artifacts: [
             [artifactId: 'MyWebApp',
              classifier: '',
@@ -34,31 +33,36 @@ node {
         ]
      )
     }
-    stage ('QA Deploy')  {
-     echo "deploying to QA Env " 
-    deploy adapters: [tomcat8(credentialsId: '078030e1-9eb8-4b32-915a-f3d15757a450', path: '', url: 'http://localhost:8090')], contextPath: null, war: '**/*.war'
+   stage ('DEV Deploy')  {
+      echo "deploying to DEV Env "
+      deploy adapters: [tomcat8(credentialsId: 'de139c2f-6338-4210-a87a-8cb998e5da6e', path: '', url: 'http://localhost:8090')], contextPath: null, war: '**/*.war'
 
-}
+    }
+    
    stage ('DEV Approve')  {
             echo "Taking approval from DEV Manager"     
             timeout(time: 7, unit: 'DAYS') {
             input message: 'Do you want to deploy?', submitter: 'admin'
             }
      }
-   stage ('Slack notification')  {
-    slackSend(channel:'devops-coach', message: "Job is successful, here is the info -  Job '${env.JOB_NAME} [${env.BUILD_NUMBER}]' (${env.BUILD_URL})")
+     stage ('QA Deploy')  {
+     echo "deploying to QA Env " 
+deploy adapters: [tomcat8(credentialsId: 'de139c2f-6338-4210-a87a-8cb998e5da6e', path: '', url: 'http://localhost:8090')], contextPath: null, war: '**/*.war'
+
+}
+stage ('Slack notification')  {
+    slackSend(channel:'ananthprojectdeploy', message: "Job is successful, here is the info -  Job '${env.JOB_NAME} [${env.BUILD_NUMBER}]' (${env.BUILD_URL})")
    }
-   stage ('QA Approve')  {
+   stage ('QA Deploy')  {
+     echo "deploying to QA Env " 
+deploy adapters: [tomcat8(credentialsId: 'de139c2f-6338-4210-a87a-8cb998e5da6e', path: '', url: 'http://localhost:8090')], contextPath: null, war: '**/*.war'
+
+}
+stage ('QA Approve')  {
     echo "Taking approval from QA manager"
 
     timeout(time: 7, unit: 'DAYS') {
         input message: 'Do you want to proceed to PROD?', submitter: 'admin,manager_userid'
   }
 }
-    stage ('QA Deploy')  {
-     echo "deploying to QA Env " 
-    deploy adapters: [tomcat8(credentialsId: '078030e1-9eb8-4b32-915a-f3d15757a450', path: '', url: 'http://localhost:8090')], contextPath: null, war: '**/*.war'
-    }
 }
-   
-   
